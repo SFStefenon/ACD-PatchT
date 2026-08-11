@@ -42,7 +42,7 @@ from pathlib import Path
 OUTPUT_DIR = Path("Results_01_ablation")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-df = pd.read_csv("tucurui.csv", sep=";", decimal=",")
+df = pd.read_csv("dados_hidrologicos/tucurui.csv", sep=";", decimal=",")
 data = df[["Natural Flow", "UPH610010000"]].dropna()
 values = data["Natural Flow"].to_numpy(dtype=np.float32)
 precipitation = data["UPH610010000"].to_numpy(dtype=np.float32)
