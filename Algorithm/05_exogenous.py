@@ -1,5 +1,5 @@
 gpu_use = True
-gpu_number = "6"
+gpu_number = "1"
 if gpu_use == True:
     import os
     import torch
@@ -28,6 +28,7 @@ import torch
 from scipy.stats import wilcoxon
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
+
 
 # ============================================================
 # Configuration
