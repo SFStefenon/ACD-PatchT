@@ -22,7 +22,6 @@ for year in range(2010, 2027):
             print(f"Not available: {filename} ({response.status_code})")
 
 # Download the Tucuruí dataset from GitHub
-filename = "tucurui.csv"
 url = (
     "https://raw.githubusercontent.com/SFStefenon/"
     "NaturalFlowforHydroelectricity/main/tucurui.csv"
@@ -31,5 +30,5 @@ url = (
 response = requests.get(url, timeout=60)
 response.raise_for_status()
 
-(output_dir / filename).write_bytes(response.content)
-print(f"Downloaded: {filename}")
+Path("tucurui.csv").write_bytes(response.content)
+print("Downloaded: tucurui.csv")
