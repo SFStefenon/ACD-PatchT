@@ -1,4 +1,8 @@
 gpu_use = True
+complete = True
+generalization_analisys = True
+HORIZON = 7
+
 gpu_number = "1"
 if gpu_use == True:
     import os
@@ -9,7 +13,17 @@ if gpu_use == True:
     print(torch.cuda.get_device_name(0))
     print(f"GPU {gpu_number}")
 
-complete = True
+from pathlib import Path
+if generalization_analisys == True:
+    OUTPUT_DIR = Path("Results_03_opt_model_generalization")
+    DATA_DIR = Path("dados_hidrologicos")
+    RESERVOIR_ID = "AMUSBM"
+    FLOW_COLUMN = "val_vazaoafluente"
+else:
+    OUTPUT_DIR = Path("Results_03_opt_model")
+    DATA_PATH = "tucurui.csv"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
 if complete: # Complete experiment
     EPOCHS = 500
     RUNS = 50
@@ -17,6 +31,7 @@ else:
     EPOCHS = 2
     RUNS = 2
 
+import time
 import os
 import math
 import random
@@ -48,19 +63,11 @@ params = {
     "grad_clip": 1.0,
 }
 
-HORIZON = 7
 SEEDS = list(range(1, RUNS+1))
-
-from pathlib import Path
-OUTPUT_DIR = Path("Results_03_opt_model")
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-DATA_PATH = "tucurui.csv"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ###############################################################################
 # Used Classes
-
 def set_seed(seed):
     random.seed(seed); np.random.seed(seed); torch.manual_seed(seed)
     if torch.cuda.is_available(): torch.cuda.manual_seed_all(seed)
@@ -241,17 +248,57 @@ def diffusion_loss_by_timestep(model, x, y, samples_per_step=5):
 
 ###############################################################################
 # Load Data
+if generalization_analisys == True:
+    files = sorted(DATA_DIR.glob("DADOS_HIDROLOGICOS_HO_*.csv"))
+    if not files:
+        raise FileNotFoundError(f"No CSV files found in {DATA_DIR.resolve()}")
+    
+    columns = ["id_reservatorio", "nom_reservatorio", "din_instante", FLOW_COLUMN]
+    data = pd.concat(
+        [pd.read_csv(f, sep=";", decimal=",", usecols=columns) for f in files],
+        ignore_index=True,)
+    
+    data["din_instante"] = pd.to_datetime(data["din_instante"], errors="coerce")
+    data[FLOW_COLUMN] = pd.to_numeric(data[FLOW_COLUMN], errors="coerce")
+    data = (data[data["id_reservatorio"].eq(RESERVOIR_ID)]
+            .dropna(subset=["din_instante", FLOW_COLUMN])
+            .sort_values("din_instante")
+            .drop_duplicates("din_instante", keep="last")
+            .set_index("din_instante"))
+    
+    # For daily natural/affluent flow, using the daily mean
+    data = data.resample("D").agg({FLOW_COLUMN: "mean","nom_reservatorio": 
+                                   "first",}).dropna(subset=[FLOW_COLUMN])
+    
+    print(f"{data['nom_reservatorio'].iloc[0]}: {data.index.min()} to "
+          f"{data.index.max()} ({len(data)} observations)")
+    
+    values = data[FLOW_COLUMN].to_numpy(np.float32)
+    split = int(0.8 * len(values))
+    data_mean, data_std = values[:split].mean(), values[:split].std()
+    values = (values - data_mean) / data_std
+    
+    train_values = values[:split]
+    test_values = values[split - params["lookback"]:]
+    
+    x_train, y_train = make_windows(train_values, params["lookback"], HORIZON)
+    x_test, y_test = make_windows(test_values, params["lookback"], HORIZON)
+    
+    train_dataset = TensorDataset(x_train, y_train)
+    test_dataset = TensorDataset(x_test, y_test)
+    test_loader = DataLoader(test_dataset, batch_size=params["batch_size"], shuffle=False)
 
-values = pd.read_csv(DATA_PATH, sep=";", decimal=",")["Natural Flow"].dropna().to_numpy(np.float32)
-split = int(len(values) * 0.8)
-data_mean, data_std = values[:split].mean(), values[:split].std()
-values = (values - data_mean) / data_std
-train_values, test_values = values[:split], values[split - params["lookback"]:]
-x_train, y_train = make_windows(train_values, params["lookback"], HORIZON)
-x_test, y_test = make_windows(test_values, params["lookback"], HORIZON)
-train_dataset, test_dataset = TensorDataset(x_train, y_train), TensorDataset(x_test, y_test)
-test_loader = DataLoader(test_dataset, batch_size=params["batch_size"], shuffle=False)
-
+else:
+    # Load Data
+    values = pd.read_csv(DATA_PATH, sep=";", decimal=",")["Natural Flow"].dropna().to_numpy(np.float32)
+    split = int(len(values) * 0.8)
+    data_mean, data_std = values[:split].mean(), values[:split].std()
+    values = (values - data_mean) / data_std
+    train_values, test_values = values[:split], values[split - params["lookback"]:]
+    x_train, y_train = make_windows(train_values, params["lookback"], HORIZON)
+    x_test, y_test = make_windows(test_values, params["lookback"], HORIZON)
+    train_dataset, test_dataset = TensorDataset(x_train, y_train), TensorDataset(x_test, y_test)
+    test_loader = DataLoader(test_dataset, batch_size=params["batch_size"], shuffle=False)
 ###############################################################################
 # Run the Experiment
 
@@ -259,13 +306,23 @@ results, histories, run_outputs, states = [], [], [], []
 for run, seed in enumerate(SEEDS, 1):
     set_seed(seed)
     generator = torch.Generator().manual_seed(seed)
-    train_loader = DataLoader(train_dataset, batch_size=params["batch_size"], shuffle=True,
-                              generator=generator)
+    train_loader = DataLoader(train_dataset, batch_size=params["batch_size"], 
+                              shuffle=True, generator=generator)
     model = FullDiffusionTransformer(params, HORIZON).to(device)
+    
+    start = time.time()
     histories.append(train_model(model, train_loader, params, EPOCHS))
+    train_time = time.time() - start
+    
+    start = time.time()
+    metrics, predictions, targets = evaluate_model(
+        model, test_loader, data_mean, data_std)
+    test_time = time.time() - start
+
     metrics, predictions, targets = evaluate_model(model, test_loader, data_mean, data_std)
     results.append({"Seed": seed,
-                    "Parameters": sum(p.numel() for p in model.parameters() if p.requires_grad), **metrics})
+    "Parameters": sum(p.numel() for p in model.parameters() if p.requires_grad),
+    **metrics, "Train": train_time, "Test": test_time})
     run_outputs.append((predictions, targets)); states.append({k: v.detach().cpu().clone() for k, v in model.state_dict().items()})
     print(f"Run {run}/{len(SEEDS)} | Seed: {seed} | RMSE: {metrics['RMSE']:.6f} | "
           f"MAE: {metrics['MAE']:.6f} | SMAPE: {metrics['SMAPE']:.6f}")
@@ -289,141 +346,158 @@ predictions, targets = run_outputs[representative]
 print(f"Plots use seed {results_df.loc[representative, 'Seed']}, whose RMSE is closest to the multi-seed mean.")
 
 ###############################################################################
-# Plot of Results
-plt.rcParams.update({"font.size": 11, "axes.labelsize": 12, "axes.titlesize": 13,
-                     "legend.fontsize": 10, "figure.dpi": 120})
-steps, future = np.arange(1, EPOCHS + 1), np.arange(1, HORIZON + 1)
-mean_history = {key: np.mean([h[key] for h in histories], axis=0) for key in histories[0]}
-errors = predictions - targets
-mae = np.abs(errors).mean(0)
-rmse = np.sqrt((errors**2).mean(0))
-smape = 100 * np.mean(2 * np.abs(errors) / (np.abs(targets) + np.abs(predictions) + 1e-8), axis=0)
-
-plt.figure(figsize=(6, 4))
-for key, label in [("total", "Total loss"), ("forecast", "Forecast loss"), ("diffusion", "Diffusion loss")]:
-    plt.plot(steps, mean_history[key], linewidth=2.2, label=label)
-plt.xlabel("Epoch"); plt.ylabel("Loss"); #plt.title("Mean training convergence across seeds")
-plt.grid(alpha=.25); plt.legend(); plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True));
-name = "training_losses.pdf"
-plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
-
-fig, ax = plt.subplots(figsize=(6, 4))
-l1 = ax.plot(future, mae, "o-", label="MAE")
-l2 = ax.plot(future, rmse, "s-", label="RMSE")
-ax.set(xlabel="Forecast horizon", ylabel="Error (m³/s)"); ax.grid(alpha=.25)
-ax2 = ax.twinx()
-l3 = ax2.plot(future, smape, "^-", color="green", label="SMAPE")
-ax2.set_ylabel("SMAPE (%)")
-lines = l1 + l2 + l3
-ax.legend(lines, [line.get_label() for line in lines], loc="upper left")
-name = "horizon_errors.pdf"
-plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
-
-plt.figure(figsize=(6, 4))
-image = plt.imshow(np.abs(errors[:min(100, len(errors))]), aspect="auto", origin="lower")
-plt.colorbar(image, label="Absolute error (m³/s)"); plt.xlabel("Forecast horizon"); plt.ylabel("Test window")
-plt.xticks(np.arange(HORIZON), future); #plt.title("Forecast-error heatmap"); 
-name = "error_heatmap.pdf"
-plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
-
-plt.figure(figsize=(6, 4))
-actual, predicted = targets.ravel(), predictions.ravel()
-end = max(actual.max(), predicted.max())
-plt.scatter(actual, predicted, alpha=.25, color="g")
-plt.plot([0, end], [0, end], "k--")
-plt.xlim(-500, end+500); plt.ylim(-500, end+500)
-plt.xlabel("Actual flow (m³/s)"); plt.ylabel("Predicted flow (m³/s)"); plt.grid(); 
-name = "actual_vs_predicted.pdf"
-plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
-
-plt.figure(figsize=(6, 4)); plt.hist(errors.ravel(), bins=50, density=True, alpha=.75, edgecolor="black", linewidth=.5)
-plt.axvline(errors.ravel().mean(), ls="--", lw=2, label=f"Mean = {errors.ravel().mean():.2f}", color="k")
-plt.xlabel("Residual (m³/s)"); plt.ylabel("Density"); #plt.title("Residual distribution"); 
-plt.grid(axis="y", alpha=.25); plt.legend(); 
-name = "residual_distribution.pdf"
-plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
-  
-example = min(10, len(predictions) - 1)
-plt.figure(figsize=(6, 4)); plt.plot(future, targets[example], "o-", lw=2.3, label="Actual", color="b")
-plt.plot(future, predictions[example], "s--", lw=2.4, label="Prediction", color="r")
-plt.fill_between(future, targets[example], predictions[example], alpha=.15)
-plt.xlabel("Forecast horizon"); plt.ylabel("Natural flow (m³/s)"); #plt.title(f"Forecast example {example}")
-plt.grid(alpha=.25); plt.legend(); 
-name = "forecast_example.pdf"
-plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
-
-window_rmse = np.sqrt((errors**2).mean(1)); indices = {"best": window_rmse.argmin(),
-    "median": np.argsort(window_rmse)[len(window_rmse)//2], "worst": window_rmse.argmax()}
-for name, index in indices.items():
-    plt.figure(figsize=(6, 4)); plt.plot(future, targets[index], "o-", lw=2.3, label="Actual", color="b")
-    plt.plot(future, predictions[index], "s--", lw=2.4, label="Prediction", color="r")
-    plt.fill_between(future, targets[index], predictions[index], alpha=.15); plt.xlabel("Forecast horizon")
-    plt.ylabel("Natural flow (m³/s)"); 
-    #plt.title(f"{name.title()} forecast — RMSE = {window_rmse[index]:.2f} m³/s")
-    plt.grid(alpha=.25); plt.legend(); 
-    name = str(f"{name}_forecast.pdf")
+if generalization_analisys == False:
+    # Plot of Results
+    plt.rcParams.update({"font.size": 11, "axes.labelsize": 12, "axes.titlesize": 13,
+                         "legend.fontsize": 10, "figure.dpi": 120})
+    steps, future = np.arange(1, EPOCHS + 1), np.arange(1, HORIZON + 1)
+    mean_history = {key: np.mean([h[key] for h in histories], axis=0) for key in histories[0]}
+    errors = predictions - targets
+    mae = np.abs(errors).mean(0)
+    rmse = np.sqrt((errors**2).mean(0))
+    smape = 100 * np.mean(2 * np.abs(errors) / (np.abs(targets) + np.abs(predictions) + 1e-8), axis=0)
+    
+    plt.figure(figsize=(6, 4))
+    for key, label in [("total", "Total loss"), ("forecast", "Forecast loss"), ("diffusion", "Diffusion loss")]:
+        plt.plot(steps, mean_history[key], linewidth=2.2, label=label)
+    plt.xlabel("Epoch"); plt.ylabel("Loss"); #plt.title("Mean training convergence across seeds")
+    plt.grid(alpha=.25); plt.legend(); plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True));
+    name = "training_losses.pdf"
     plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
-
-x, y = test_dataset[example]; batch = x.unsqueeze(0); 
-saliency = gradient_saliency(model, batch)[0]
-input_values = x.squeeze(-1).numpy() * data_std + data_mean; history_axis = np.arange(-params["lookback"], 0)
-importance = horizon_saliency(model, batch); plt.figure(figsize=(6, 4)); 
-image = plt.imshow(importance, aspect="auto", origin="lower")
-plt.colorbar(image, label="Normalized gradient importance"); 
-plt.xlabel("Historical input time step"); plt.ylabel("Forecast horizon")
-positions = np.linspace(0, params["lookback"] - 1, 9, dtype=int); 
-plt.xticks(positions, history_axis[positions]); plt.yticks(np.arange(HORIZON), future)
-#plt.title("Input importance by forecast horizon"); 
-name = "horizon_saliency_heatmap.pdf"
-plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
-
-patch_importance = occlusion_importance(model, batch, params["patch_size"])[0]; 
-patch_axis = np.arange(len(patch_importance))
-plt.figure(figsize=(6, 4)); plt.bar(patch_axis, patch_importance, color="b"); 
-plt.xlabel("Historical input patch"); plt.ylabel("Normalized importance"); 
-#plt.title("Patch occlusion importance"); 
-plt.grid(axis="y", alpha=.25); 
-name = "patch_occlusion_importance.pdf"
-plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
-
-fig, ax1 = plt.subplots(figsize=(6, 4)); 
-ax1.plot(history_axis, input_values, lw=2, label="Input series", color="k")
-ax1.set(xlabel="Time step relative to forecast", ylabel="Natural flow (m³/s)"); ax1.grid(alpha=.25)
-ax2 = ax1.twinx(); ax2.fill_between(history_axis, 0, saliency, alpha=.25, color="tab:orange", label="Gradient importance")
-ax2.set_ylabel("Normalized importance"); ax2.set_ylim(0, 1.05)
-lines1, labels1 = ax1.get_legend_handles_labels(); 
-lines2, labels2 = ax2.get_legend_handles_labels()
-ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper center"); 
-ax1.set_xlim(-params["lookback"], 0)
-#plt.title("Input-time importance"); 
-name = "input_saliency.pdf"
-plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
-
-number = min(200, len(test_dataset)); 
-global_saliency = np.mean([gradient_saliency(model, test_dataset[i][0].unsqueeze(0))[0] for i in range(number)], axis=0)
-global_saliency /= global_saliency.max() + 1e-8; 
-plt.figure(figsize=(6, 4)); plt.plot(history_axis, global_saliency, lw=2.3, color="b")
-plt.fill_between(history_axis, 0, global_saliency, alpha=.2, color="b"); 
-plt.xlabel("Time step relative to forecast")
-plt.ylabel("Mean normalized importance"); plt.grid(alpha=.25); 
-#plt.title(f"Global temporal importance across {number} test windows"); 
-name = "global_temporal_importance.pdf"
-plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
-
-size = min(64, len(test_dataset)); x_diff = torch.stack([test_dataset[i][0] for i in range(size)]); 
-y_diff = torch.stack([test_dataset[i][1] for i in range(size)])
-diffusion_steps, losses = diffusion_loss_by_timestep(model, x_diff, y_diff)
-plt.figure(figsize=(6, 4)); plt.plot(diffusion_steps, losses, "o-", lw=2.2, color="k"); 
-plt.xlabel("Diffusion timestep")
-plt.ylabel("Noise-prediction MSE"); plt.grid(alpha=.25); 
-# plt.title("Diffusion loss by timestep"); 
-name = "diffusion_timestep_loss.pdf"
-plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
-
-n = min(300, len(predictions)); axis = np.arange(n)
-plt.figure(figsize=(6, 4)); plt.plot(axis, targets[:n, 0], "-", lw=2, label="Actual", color="b")
-plt.plot(axis, predictions[:n, 0], "--", lw=2, label="Prediction", color="r")
-plt.xlabel("Test window"); plt.ylabel("Natural flow (m³/s)"); #plt.title("One-step-ahead test predictions")
-plt.grid(alpha=.25); plt.legend(); plt.show()
-name = "continuous_predictions.pdf"
-plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
+    
+    fig, ax = plt.subplots(figsize=(6, 4))
+    l1 = ax.plot(future, mae, "o-", label="MAE")
+    l2 = ax.plot(future, rmse, "s-", label="RMSE")
+    ax.set(xlabel="Forecast horizon", ylabel="Error (m³/s)"); ax.grid(alpha=.25)
+    ax2 = ax.twinx()
+    l3 = ax2.plot(future, smape, "^-", color="green", label="SMAPE")
+    ax2.set_ylabel("SMAPE (%)")
+    lines = l1 + l2 + l3
+    ax.legend(lines, [line.get_label() for line in lines], loc="upper left")
+    name = "horizon_errors.pdf"
+    plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
+    
+    plt.figure(figsize=(6, 4))
+    image = plt.imshow(np.abs(errors[:min(100, len(errors))]), aspect="auto", origin="lower")
+    plt.colorbar(image, label="Absolute error (m³/s)"); plt.xlabel("Forecast horizon"); plt.ylabel("Test window")
+    plt.xticks(np.arange(HORIZON), future); #plt.title("Forecast-error heatmap"); 
+    name = "error_heatmap.pdf"
+    plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
+    
+    plt.figure(figsize=(6, 4))
+    actual, predicted = targets.ravel(), predictions.ravel()
+    end = max(actual.max(), predicted.max())
+    plt.scatter(actual, predicted, alpha=.25, color="g")
+    plt.plot([0, end], [0, end], "k--")
+    plt.xlim(-500, end+500); plt.ylim(-500, end+500)
+    plt.xlabel("Actual flow (m³/s)"); plt.ylabel("Predicted flow (m³/s)"); plt.grid(); 
+    name = "actual_vs_predicted.pdf"
+    plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
+    
+    plt.figure(figsize=(6, 4)); plt.hist(errors.ravel(), bins=50, density=True, alpha=.75, edgecolor="black", linewidth=.5)
+    plt.axvline(errors.ravel().mean(), ls="--", lw=2, label=f"Mean = {errors.ravel().mean():.2f}", color="k")
+    plt.xlabel("Residual (m³/s)"); plt.ylabel("Density"); #plt.title("Residual distribution"); 
+    plt.grid(axis="y", alpha=.25); plt.legend(); 
+    name = "residual_distribution.pdf"
+    plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
+      
+    example = min(10, len(predictions) - 1)
+    plt.figure(figsize=(6, 4)); plt.plot(future, targets[example], "o-", lw=2.3, label="Actual", color="b")
+    plt.plot(future, predictions[example], "s--", lw=2.4, label="Prediction", color="r")
+    plt.fill_between(future, targets[example], predictions[example], alpha=.15)
+    plt.xlabel("Forecast horizon"); plt.ylabel("Natural flow (m³/s)"); #plt.title(f"Forecast example {example}")
+    plt.grid(alpha=.25); plt.legend(); 
+    name = "forecast_example.pdf"
+    plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
+    
+    window_rmse = np.sqrt((errors**2).mean(1)); indices = {"best": window_rmse.argmin(),
+        "median": np.argsort(window_rmse)[len(window_rmse)//2], "worst": window_rmse.argmax()}
+    for name, index in indices.items():
+        plt.figure(figsize=(6, 4)); plt.plot(future, targets[index], "o-", lw=2.3, label="Actual", color="b")
+        plt.plot(future, predictions[index], "s--", lw=2.4, label="Prediction", color="r")
+        plt.fill_between(future, targets[index], predictions[index], alpha=.15); plt.xlabel("Forecast horizon")
+        plt.ylabel("Natural flow (m³/s)"); 
+        #plt.title(f"{name.title()} forecast — RMSE = {window_rmse[index]:.2f} m³/s")
+        plt.grid(alpha=.25); plt.legend(); 
+        name = str(f"{name}_forecast.pdf")
+        plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
+    
+    x, y = test_dataset[example]; batch = x.unsqueeze(0); 
+    saliency = gradient_saliency(model, batch)[0]
+    input_values = x.squeeze(-1).numpy() * data_std + data_mean; history_axis = np.arange(-params["lookback"], 0)
+    importance = horizon_saliency(model, batch); plt.figure(figsize=(6, 4)); 
+    image = plt.imshow(importance, aspect="auto", origin="lower")
+    plt.colorbar(image, label="Normalized gradient importance"); 
+    plt.xlabel("Historical input time step"); plt.ylabel("Forecast horizon")
+    positions = np.linspace(0, params["lookback"] - 1, 9, dtype=int); 
+    plt.xticks(positions, history_axis[positions]); plt.yticks(np.arange(HORIZON), future)
+    #plt.title("Input importance by forecast horizon"); 
+    name = "horizon_saliency_heatmap.pdf"
+    plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
+    
+    patch_importance = occlusion_importance(model, batch, params["patch_size"])[0]; 
+    patch_axis = np.arange(len(patch_importance))
+    plt.figure(figsize=(6, 4)); plt.bar(patch_axis, patch_importance, color="b"); 
+    plt.xlabel("Historical input patch"); plt.ylabel("Normalized importance"); 
+    #plt.title("Patch occlusion importance"); 
+    plt.grid(axis="y", alpha=.25); 
+    name = "patch_occlusion_importance.pdf"
+    plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
+    
+    fig, ax1 = plt.subplots(figsize=(6, 4)); 
+    ax1.plot(history_axis, input_values, lw=2, label="Input series", color="k")
+    ax1.set(xlabel="Time step relative to forecast", ylabel="Natural flow (m³/s)"); ax1.grid(alpha=.25)
+    ax2 = ax1.twinx(); ax2.fill_between(history_axis, 0, saliency, alpha=.25, color="tab:orange", label="Gradient importance")
+    ax2.set_ylabel("Normalized importance"); ax2.set_ylim(0, 1.05)
+    lines1, labels1 = ax1.get_legend_handles_labels(); 
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper center"); 
+    ax1.set_xlim(-params["lookback"], 0)
+    #plt.title("Input-time importance"); 
+    name = "input_saliency.pdf"
+    plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
+    
+    number = min(200, len(test_dataset)); 
+    global_saliency = np.mean([gradient_saliency(model, test_dataset[i][0].unsqueeze(0))[0] for i in range(number)], axis=0)
+    global_saliency /= global_saliency.max() + 1e-8; 
+    plt.figure(figsize=(6, 4)); plt.plot(history_axis, global_saliency, lw=2.3, color="b")
+    plt.fill_between(history_axis, 0, global_saliency, alpha=.2, color="b"); 
+    plt.xlabel("Time step relative to forecast")
+    plt.ylabel("Mean normalized importance"); plt.grid(alpha=.25); 
+    #plt.title(f"Global temporal importance across {number} test windows"); 
+    name = "global_temporal_importance.pdf"
+    plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
+    
+    size = min(64, len(test_dataset)); x_diff = torch.stack([test_dataset[i][0] for i in range(size)]); 
+    y_diff = torch.stack([test_dataset[i][1] for i in range(size)])
+    diffusion_steps, losses = diffusion_loss_by_timestep(model, x_diff, y_diff)
+    plt.figure(figsize=(6, 4)); plt.plot(diffusion_steps, losses, "o-", lw=2.2, color="k"); 
+    plt.xlabel("Diffusion timestep")
+    plt.ylabel("Noise-prediction MSE"); plt.grid(alpha=.25); 
+    # plt.title("Diffusion loss by timestep"); 
+    name = "diffusion_timestep_loss.pdf"
+    plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
+    
+    n = min(300, len(predictions)); axis = np.arange(n)
+    plt.figure(figsize=(6, 4)); plt.plot(axis, targets[:n, 0], "-", lw=2, label="Actual", color="b")
+    plt.plot(axis, predictions[:n, 0], "--", lw=2, label="Prediction", color="r")
+    plt.xlabel("Test window"); plt.ylabel("Natural flow (m³/s)"); #plt.title("One-step-ahead test predictions")
+    plt.grid(alpha=.25); plt.legend(); plt.show()
+    name = "continuous_predictions.pdf"
+    plt.tight_layout(); plt.savefig(OUTPUT_DIR / name, bbox_inches="tight"); plt.show()
+    
+    results.append({"Seed": seed,
+        "Parameters": sum(p.numel() for p in model.parameters() if p.requires_grad),
+        **metrics, "Train": train_time, "Test": test_time})
+    
+def sci(x):
+    exponent = int(np.floor(np.log10(abs(x)))) if x != 0 else 0
+    coefficient = x / 10**exponent
+    return f"{coefficient:.2f}$\\times 10^{{{exponent}}}$"
+    
+print(f"\nOurs & {HORIZON}"
+    f" & {sci(results_df.RMSE.mean())} $\\pm$ {sci(results_df.RMSE.std())}"
+    f" & {sci(results_df.MAE.mean())} $\\pm$ {sci(results_df.MAE.std())}"
+    f" & {sci(results_df.SMAPE.mean())} $\\pm$ {sci(results_df.SMAPE.std())}"
+    f" & {sci(results_df.Train.mean())}"
+    f" & {sci(results_df.Test.mean())} \\\\")
