@@ -50,7 +50,7 @@ warnings.filterwarnings("ignore")
 DATA_PATH = "tucurui.csv"
 TARGET_COLUMN = "Natural Flow"
 LOOKBACK = 64
-HORIZON = 7
+HORIZON = 15
 MAX_STEPS = EPOCHS
 BATCH_SIZE = 64
 TEST_RATIO = 0.20
