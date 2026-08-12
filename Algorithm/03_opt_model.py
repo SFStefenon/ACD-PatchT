@@ -1,6 +1,6 @@
 gpu_use = True
 complete = True
-generalization_analisys = False
+generalization_analysis = False # for True download the dataset using: https://github.com/SFStefenon/ACD-PatchT/blob/main/Algorithm/00_download_data.py
 HORIZON = 7
 
 gpu_number = "1"
@@ -14,7 +14,7 @@ if gpu_use == True:
     print(f"GPU {gpu_number}")
 
 from pathlib import Path
-if generalization_analisys == True:
+if generalization_analysis == True:
     OUTPUT_DIR = Path("Results_03_opt_model_generalization")
     DATA_DIR = Path("dados_hidrologicos")
     RESERVOIR_ID = "AMUSBM"
@@ -248,7 +248,7 @@ def diffusion_loss_by_timestep(model, x, y, samples_per_step=5):
 
 ###############################################################################
 # Load Data
-if generalization_analisys == True:
+if generalization_analysis == True:
     files = sorted(DATA_DIR.glob("DADOS_HIDROLOGICOS_HO_*.csv"))
     if not files:
         raise FileNotFoundError(f"No CSV files found in {DATA_DIR.resolve()}")
@@ -346,7 +346,7 @@ predictions, targets = run_outputs[representative]
 print(f"Plots use seed {results_df.loc[representative, 'Seed']}, whose RMSE is closest to the multi-seed mean.")
 
 ###############################################################################
-if generalization_analisys == False:
+if generalization_analysis == False:
     # Plot of Results
     plt.rcParams.update({"font.size": 11, "axes.labelsize": 12, "axes.titlesize": 13,
                          "legend.fontsize": 10, "figure.dpi": 120})
