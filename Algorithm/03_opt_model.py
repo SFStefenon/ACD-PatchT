@@ -1,6 +1,6 @@
 gpu_use = True
 complete = True
-generalization_analisys = True
+generalization_analisys = False
 HORIZON = 7
 
 gpu_number = "1"
