@@ -166,12 +166,6 @@ If you use ACD-PatchT in your research, please cite:
 }
 ```
 
-Update this entry with the journal, volume, pages, and DOI after publication.
-
-## Acknowledgements
-
-This work was supported by the Natural Sciences and Engineering Research Council of Canada (NSERC), funding reference **DDG-2024-00035**.
-
 ## Contact
 
 For questions about the model or experiments, contact [Stefano Frizzo Stefenon](mailto:stefano.stefenon@isel.pt).
