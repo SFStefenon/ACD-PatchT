@@ -3,6 +3,13 @@ complete = True
 generalization_analysis = False 
 # For "True" download the dataset using: https://github.com/SFStefenon/ACD-PatchT/blob/main/Algorithm/00_download_data.py
 
+'''
+Sudeste/Centro-Oeste - Fio dagua - DOCE - DCUBAG - BAGUARI
+Nordeste - Reservatório com Usina - SAO FRANCISCO - SFSOBR - SOBRADINHO
+Sul - Reservatório com Usina - URUGUAI - RIUHCN - CAMPOS NOVOS
+Norte - Fio dagua - AMAZONAS - AMUSBM - BELO MONTE
+'''
+
 HORIZON = 7
 
 gpu_number = "1"
