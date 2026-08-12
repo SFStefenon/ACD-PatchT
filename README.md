@@ -1,6 +1,6 @@
 # ACD-PatchT
 
-**Auxiliary Conditional Diffusion Patch Transformer for multi-step natural inflow forecasting in hydroelectric power plants**
+**Auxiliary Conditional Diffusion Patch Transformer for Multi-step Forecasting**
 
 ACD-PatchT combines a patch-based Transformer forecasting backbone with an auxiliary conditional diffusion objective. The diffusion branch regularizes the learned temporal representation during training and is removed during inference. Forecasts are therefore produced directly, without iterative reverse-diffusion sampling.
 
