@@ -1,6 +1,8 @@
 gpu_use = True
 complete = True
-generalization_analysis = False # for True download the dataset using: https://github.com/SFStefenon/ACD-PatchT/blob/main/Algorithm/00_download_data.py
+generalization_analysis = False 
+# For "True" download the dataset using: https://github.com/SFStefenon/ACD-PatchT/blob/main/Algorithm/00_download_data.py
+
 HORIZON = 7
 
 gpu_number = "1"
