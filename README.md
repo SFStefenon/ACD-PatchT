@@ -66,27 +66,6 @@ Additional natural inflow data used for the generalization study are available f
 
 This procedure prevents test-set information from entering normalization or hyperparameter selection.
 
-## Reference environment
-
-The experiments reported in the paper used:
-
-- Python 3.9.20
-- PyTorch 2.8.0
-- Apple M2 system-on-chip
-- 8 GB unified memory
-- macOS Tahoe 26.5.1
-
-A typical Python environment can be created with:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install torch==2.8.0 numpy pandas scipy scikit-learn optuna matplotlib seaborn
-```
-
-Install `neuralforecast` separately if reproducing the benchmark architectures implemented through that package.
-
 ## Optimized configuration
 
 The Tree-structured Parzen Estimator (TPE) evaluated 100 trials using validation RMSE as the objective. The selected configuration was retrained from scratch across 50 independent random seeds.
