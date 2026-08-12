@@ -4,8 +4,6 @@
 
 ACD-PatchT combines a patch-based Transformer forecasting backbone with an auxiliary conditional diffusion objective. The diffusion branch regularizes the learned temporal representation during training and is removed during inference. Forecasts are therefore produced directly, without iterative reverse-diffusion sampling.
 
-For seven-step natural inflow forecasting at the Tucuruí hydroelectric power plant, ACD-PatchT achieved an RMSE of **843 m³/s**, an MAE of **459 m³/s**, and an SMAPE of **9.78%**, averaged over 50 independent runs.
-
 ## Highlights
 
 - Non-overlapping temporal patches reduce the effective input sequence length.
@@ -13,7 +11,6 @@ For seven-step natural inflow forecasting at the Tucuruí hydroelectric power pl
 - Conditional diffusion supplies an auxiliary noise-prediction task during training.
 - The shared historical representation supports both forecasting and diffusion conditioning.
 - Inference uses only the Transformer backbone and deterministic forecast head.
-- The model was evaluated through ablation, hyperparameter tuning, explainability, benchmarking, and cross-plant generalization studies.
 
 ## Architecture
 
