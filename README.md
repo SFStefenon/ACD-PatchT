@@ -164,29 +164,9 @@ If you use ACD-PatchT in your research, please cite:
 }
 ```
 
-## Contact
-
-For questions about the model or experiments, contact [Stefano Frizzo Stefenon](mailto:stefano.stefenon@isel.pt).
-
-
-
-
-
-
-
 ---
 
 ## 👨‍🏫 Stefano Frizzo Stefenon, PhD  
-
-### 🎓 **Professor** 
-
-💻 Departamento de Engenharia Informática 
-
-🏛️ Instituto Superior de Engenharia de Lisboa (ISEL)
-
-🏫 Instituto Politécnico de Lisboa (IPL)
-
----
 
 ### 🔬 Academic Profiles
 <p align="left">
