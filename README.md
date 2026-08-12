@@ -33,8 +33,6 @@ flowchart TD
     LF --> L
 ```
 
-Given a standardized historical sequence of length \(L\), the model creates \(N=L/P\) non-overlapping patches of length \(P\). Each patch is projected into a \(d\)-dimensional embedding, supplemented with sinusoidal positional encoding, and processed by the Transformer encoder. Mean pooling produces a condition vector \(c_t\), from which the forecasting head predicts the next \(H\) inflow values.
-
 During training, the target sequence is embedded and corrupted at a randomly sampled diffusion step. The diffusion network predicts the added Gaussian noise using the noisy target representation, condition vector, and timestep embedding. The complete objective is
 
 $$
