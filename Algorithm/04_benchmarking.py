@@ -1,6 +1,7 @@
 gpu_use = True
 complete = True
 generalization_analisys = True
+# For "True" download the dataset using: https://github.com/SFStefenon/ACD-PatchT/blob/main/Algorithm/00_download_data.py
 
 gpu_number = "1"
 if gpu_use == True:
