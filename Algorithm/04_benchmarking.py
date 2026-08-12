@@ -3,6 +3,13 @@ complete = True
 generalization_analisys = True
 # For "True" download the dataset using: https://github.com/SFStefenon/ACD-PatchT/blob/main/Algorithm/00_download_data.py
 
+'''
+Sudeste/Centro-Oeste - Fio dagua - DOCE - DCUBAG - BAGUARI
+Nordeste - Reservatório com Usina - SAO FRANCISCO - SFSOBR - SOBRADINHO
+Sul - Reservatório com Usina - URUGUAI - RIUHCN - CAMPOS NOVOS
+Norte - Fio dagua - AMAZONAS - AMUSBM - BELO MONTE
+'''
+
 gpu_number = "1"
 if gpu_use == True:
     import os
@@ -12,11 +19,6 @@ if gpu_use == True:
     print(torch.cuda.is_available())
     print(torch.cuda.get_device_name(0))
     print(f"GPU {gpu_number}")
-
-# Sudeste/Centro-Oeste - Fio dagua - DOCE - DCUBAG - BAGUARI
-# Nordeste - Reservatório com Usina - SAO FRANCISCO - SFSOBR - SOBRADINHO
-# Sul - Reservatório com Usina - URUGUAI - RIUHCN - CAMPOS NOVOS
-# Norte	- Fio dagua - AMAZONAS - AMUSBM - BELO MONTE
 
 for HORIZONS in range (13,16,2):
     print(f"Running {HORIZONS}")
