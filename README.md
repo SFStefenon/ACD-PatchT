@@ -62,7 +62,7 @@ This procedure prevents test-set information from entering normalization or hype
 
 ## Optimized configuration
 
-The Tree-structured Parzen Estimator (TPE) evaluated 100 trials using validation RMSE as the objective. The selected configuration was retrained from scratch across 50 independent random seeds.
+The Tree-structured Parzen Estimator (TPE) evaluated 100 trials using validation RMSE as the objective. The selected configuration was retrained from scratch across 50 independent random seeds. The algorithm used to compute this experiment is available [here](Algorithm/02_optimization.py).
 
 | Hyperparameter | Optimized value |
 |---|---:|
@@ -121,7 +121,7 @@ The average training time was 503 s, while deterministic inference required appr
 | Unconditional diffusion | +2.71% |
 | Without positional encoding | +56.81% |
 
-Positional encoding had the largest measured contribution. Patching and the auxiliary diffusion objective provided smaller but consistent improvements in absolute forecasting accuracy.
+Positional encoding had the largest measured contribution. Patching and the auxiliary diffusion objective provided smaller but consistent improvements in absolute forecasting accuracy. The algorithm for the ablation study is available [here](Algorithm/01_ablation.py).
 
 ### Generalization
 
