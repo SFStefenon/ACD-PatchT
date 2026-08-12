@@ -92,7 +92,7 @@ The Tree-structured Parzen Estimator (TPE) evaluated 100 trials using validation
 - Statistical analysis: paired Wilcoxon signed-rank test where applicable
 - Testing set: the entire held-out test subset
 
-Reported values are the mean ± sample standard deviation across the 50 runs.
+Reported values are the mean ± sample standard deviation across the 50 runs. The ACD-PatchT is available [here](Algorithm/03_opt_model.py), other compared algorithms used for comparison are available [here](Algorithm/04_benchmarking.py).
 
 ## Main results
 
