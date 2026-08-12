@@ -47,10 +47,7 @@ $$
 
 ## Dataset
 
-The principal experiment uses natural inflow and precipitation observations for the **Tucuruí hydroelectric power plant**, located in the Tocantins River basin in northern Brazil. The final forecasting configuration uses historical natural inflow only. Precipitation was evaluated as an exogenous variable: it reduced SMAPE but increased RMSE and MAE, so it was not retained in the final model. Additional natural inflow data used for the generalization study are available from the [ONS hydrological open-data portal](https://dados.ons.org.br/dataset/dados_hidrologicos_ho). Hourly observations were aggregated into daily means for this analysis. Both datasets can be downloaded using [this algorithm](Algorithm/00_download_data.py).
-
-
-
+The principal experiment uses natural inflow and precipitation observations for the Tucuruí hydroelectric power plant, located in the Tocantins River basin in northern Brazil. The final forecasting configuration uses historical natural inflow only. Precipitation was evaluated as an exogenous variable: it reduced SMAPE but increased RMSE and MAE, so it was not retained in the final model. Additional natural inflow data used for the generalization study are available from the [ONS hydrological open-data portal](https://dados.ons.org.br/dataset/dados_hidrologicos_ho). Hourly observations were aggregated into daily means for this analysis. Both datasets can be downloaded using the algorithm available [here](Algorithm/00_download_data.py).
 
 ### Data preparation
 
