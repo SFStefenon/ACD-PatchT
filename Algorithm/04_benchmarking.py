@@ -38,7 +38,6 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 import os
 os.environ["NIXTLA_ID_AS_COL"] = "1"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 import time
 import random
