@@ -154,7 +154,7 @@ If you use ACD-PatchT in your research, please cite:
 ```bibtex
 @article{stefenon2026acdpatcht,
   title   = {ACD-PatchT: An Auxiliary Conditional Diffusion Patch Transformer for Multi-step Natural Inflow Forecasting in Hydroelectric Power Plants},
-  author  = {Stefenon, Stefano Frizzo and Seman, Laio Oriel and Yow, Kin-Choong},
+  author  = {Stefenon, Stefano Frizzo and Seman, Laio Oriel and Matos-Carvalho, Joao Pedro and Coelho, Leandro Santos and Mariani, Viviana Cocco and Yow, Kin-Choong},
   year    = {2026},
   note    = {Manuscript}
 }
