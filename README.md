@@ -26,7 +26,7 @@ flowchart TD
     Q["Future target"] --> N["Forward noising at random step"]
     N --> D["Conditional diffusion network"]
     C -. "training only" .-> D
-    S["Timestep embedding"] -.-> D
+    S["Timestep embedding"] --> D
     D --> LD["Diffusion loss"]
     F --> LF["Forecasting loss"]
     LD --> L["Joint training objective"]
