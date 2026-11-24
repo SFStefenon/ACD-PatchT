@@ -35,9 +35,9 @@ flowchart TD
 
 During training, the target sequence is embedded and corrupted at a randomly sampled diffusion step. The diffusion network predicts the added Gaussian noise using the noisy target representation, condition vector, and timestep embedding. The complete objective is
 
-$
+$$
 \mathcal{L}=\mathcal{L}_{\mathrm{forecast}}+\lambda_{\mathrm{diff}}\mathcal{L}_{\mathrm{diffusion}}.
-$
+$$
 
 During inference, the diffusion branch is omitted:
 
